@@ -9,7 +9,7 @@ pipeline {
         DOCKER_MIGRATION_IMAGE_NAME = 'satyamkumar1507/easyshop-migration'
         DOCKER_IMAGE_TAG = "${BUILD_NUMBER}"
         GITHUB_CREDENTIALS = credentials('github-credentials')
-        GITHUB_REPO = "https://github.com/satyamkumar1507/two-tier-flask-app.git"
+        GITHUB_REPO = "https://github.com/satyamkumar1507/tws-e-commerce-app.git"
         GIT_BRANCH = "master"
     }
     
