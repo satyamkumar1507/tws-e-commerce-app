@@ -26,7 +26,7 @@ module "eks" {
 
   eks_managed_node_group_defaults = {
 
-    instance_types = ["t2.large"]
+    instance_types = ["m7i-flex.large"]
 
     attach_cluster_primary_security_group = true
 
@@ -40,8 +40,8 @@ module "eks" {
       max_size     = 3
       desired_size = 2
 
-      instance_types = ["t2.large"]
-      capacity_type  = "SPOT"
+      instance_types = ["m7i-flex.large"]
+      capacity_type  = "ON_DEMAND"
 
       disk_size = 35 
       use_custom_launch_template = false  # Important to apply disk size!
