@@ -1,0 +1,98 @@
+name: EasyShop CI-CD Pipeline
+
+on:
+  push:
+    branches:
+      - master
+
+env:
+  DOCKER_IMAGE_NAME: satyamkumar1507/easyshop-app
+  DOCKER_MIGRATION_IMAGE_NAME: satyamkumar1507/easyshop-migration
+  GIT_BRANCH: master
+
+jobs:
+  build-test-scan-push:
+    runs-on: ubuntu-latest
+
+    steps:
+    # ---------------- CLEANUP + CLONE ----------------
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    # ---------------- SET IMAGE TAG ----------------
+    - name: Set Docker Image Tag
+      run: echo "DOCKER_IMAGE_TAG=${{ github.run_number }}" >> $GITHUB_ENV
+
+    # ---------------- DOCKER SETUP ----------------
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    # ---------------- PARALLEL BUILD ----------------
+    - name: Build Main App Image
+      run: |
+        docker build \
+          -t $DOCKER_IMAGE_NAME:$DOCKER_IMAGE_TAG \
+          -f Dockerfile .
+
+    - name: Build Migration Image
+      run: |
+        docker build \
+          -t $DOCKER_MIGRATION_IMAGE_NAME:$DOCKER_IMAGE_TAG \
+          -f scripts/Dockerfile.migration .
+
+    # ---------------- UNIT TESTS ----------------
+    - name: Run Unit Tests
+      run: |
+        echo "Running unit tests..."
+        # example:
+        # npm test
+        # mvn test
+        # pytest
+
+    # ---------------- TRIVY SECURITY SCAN ----------------
+    - name: Trivy Scan - Main App
+      uses: aquasecurity/trivy-action@0.20.0
+      with:
+        image-ref: ${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}
+        format: table
+        exit-code: 0
+        severity: HIGH,CRITICAL
+
+    - name: Trivy Scan - Migration Image
+      uses: aquasecurity/trivy-action@0.20.0
+      with:
+        image-ref: ${{ env.DOCKER_MIGRATION_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}
+        format: table
+        exit-code: 0
+        severity: HIGH,CRITICAL
+
+    # ---------------- DOCKER HUB LOGIN ----------------
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+    # ---------------- PUSH IMAGES (PARALLEL LOGIC) ----------------
+    - name: Push Main App Image
+      run: |
+        docker push $DOCKER_IMAGE_NAME:$DOCKER_IMAGE_TAG
+
+    - name: Push Migration Image
+      run: |
+        docker push $DOCKER_MIGRATION_IMAGE_NAME:$DOCKER_IMAGE_TAG
+
+    # ---------------- UPDATE K8s MANIFESTS (GITOPS) ----------------
+    - name: Update Kubernetes Manifests
+      run: |
+        git config user.name "satyamkumar1507"
+        git config user.email "satyamsingh150720@gmail.com"
+
+        sed -i "s|image: .*easyshop-app:.*|image: $DOCKER_IMAGE_NAME:$DOCKER_IMAGE_TAG|g" kubernetes/*.yaml
+        sed -i "s|image: .*easyshop-migration:.*|image: $DOCKER_MIGRATION_IMAGE_NAME:$DOCKER_IMAGE_TAG|g" kubernetes/*.yaml
+
+        git add kubernetes
+        git commit -m "Update images to tag $DOCKER_IMAGE_TAG"
+        git push origin master
